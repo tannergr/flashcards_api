@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -164,12 +166,41 @@ var GetCards = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	jsonCards, err := json.Marshal(cards)
+	var rounds []GameRound
+
+	rand.Seed(time.Now().Unix())
+
+	numCards := len(cards)
+
+	for i := 0; i < numCards; i++ {
+		correct := rand.Intn(4)
+		var names []string
+
+		// initialize 4 cards
+		for j := 0; j < 4; j++ {
+			var name string
+			if j == correct {
+				name = cards[i].MeetupID
+			} else {
+				// Get a random card that istn
+				r := i
+				for r == i {
+					r = rand.Intn(numCards)
+				}
+				name = cards[r].MeetupID
+			}
+			names = append(names, name)
+		}
+		rounds = append(rounds, GameRound{names, correct, cards[i].ImageURL})
+	}
+
+	jsonCards, err := json.Marshal(rounds)
 
 	if err != nil {
 		panic(err)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprintf(w, string(jsonCards))
 
 	return
@@ -191,7 +222,7 @@ var PostScore = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Fprintf(w, "{message:'success'}")
+	sendMessage(w, "success")
 
 	return
 })
@@ -208,11 +239,11 @@ var SetSelectedDeck = http.HandlerFunc(func(w http.ResponseWriter, r *http.Reque
 		panic(err)
 	}
 	if match == false {
-		fmt.Fprintf(w, "{message:'no matching deck for user'}")
+		sendError(w, "no matching deck for user")
 		return
 	}
 
-	fmt.Fprintf(w, "{message:'success'}")
+	sendMessage(w, "success")
 
 	return
 })

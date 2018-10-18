@@ -85,7 +85,7 @@ func getDecksFromDB(memberID int64) ([]*DB_Deck, error) {
 	decks := make([]*DB_Deck, 0)
 	for rows.Next() {
 		deck := new(DB_Deck)
-		err := rows.Scan(&deck.ID, &deck.Name, &deck.EventID, &deck.UserID)
+		err := rows.Scan(&deck.ID, &deck.Name, &deck.EventID, &deck.UserID, &deck.LastScore)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -158,6 +158,25 @@ func addScoreToDB(memberID int64, deckID string, score string) (bool, error) {
 	if retID == 0 {
 		return false, nil
 	}
+
+	query = `
+		UPDATE decks
+		SET lastScore=$1
+		WHERE deck_id=$2
+		RETURNING deck_id
+	`
+
+	retID = 0
+	err = db.QueryRow(query, score, deckID).Scan(&retID)
+
+	if err != nil {
+		return true, err
+	}
+
+	if retID == 0 {
+		return false, nil
+	}
+
 	return true, nil
 }
 
@@ -202,7 +221,7 @@ func setSelectedDeckInDB(memberID int64, deckID string) (bool, error) {
 
 func getLastDeckFromDB(memberID int64) (DB_Deck, error) {
 	query := `
-		select d.deck_id, d.deck_name, d.event_id, d.user_id 
+		select d.deck_id, d.deck_name, d.event_id, d.user_id, d.lastScore
 		from decks d
 		inner join (
 			select * from last_deck
@@ -211,7 +230,7 @@ func getLastDeckFromDB(memberID int64) (DB_Deck, error) {
 	`
 	var deck DB_Deck
 
-	err := db.QueryRow(query, memberID).Scan(&deck.ID, &deck.Name, &deck.EventID, &deck.UserID)
+	err := db.QueryRow(query, memberID).Scan(&deck.ID, &deck.Name, &deck.EventID, &deck.UserID, &deck.LastScore)
 
 	if err != nil {
 		return deck, err

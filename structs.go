@@ -8,15 +8,22 @@ type Deck struct {
 }
 
 type DB_Deck struct {
-	ID      int64  `json:"deck_id"`
-	Name    string `json:"name"`
-	EventID string `json:"event_id"`
-	UserID  string `json:"user_id"`
+	ID        int64  `json:"deck_id"`
+	Name      string `json:"name"`
+	EventID   string `json:"event_id"`
+	UserID    string `json:"user_id"`
+	LastScore int    `json:"lastScore"`
 }
 
 type Card struct {
 	Name     string `json:"name"`
 	ImageURL string `json:"imageurl"`
+}
+
+type GameRound struct {
+	Names  []string `json:"names"`
+	Actual int      `json:"actual"`
+	Photo  string   `json:"photo"`
 }
 
 type DB_Card struct {

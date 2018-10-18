@@ -17,6 +17,7 @@ import (
 var db *sql.DB
 
 func main() {
+
 	var err error
 	db, err = connectDB()
 	if err != nil {

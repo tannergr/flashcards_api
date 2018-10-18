@@ -63,3 +63,11 @@ func sendMessage(w http.ResponseWriter, s string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(respW)
 }
+
+func sendError(w http.ResponseWriter, s string) {
+	var resp errResp
+	resp.Error = s
+	respW, _ := json.Marshal(resp)
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(respW)
+}
