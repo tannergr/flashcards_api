@@ -59,7 +59,11 @@ var GetEvents = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sendUnathorized(w)
 		return
 	}
-	verifiedToken := parseMeetupToken(cookie)
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
 
 	events := getMembersEvents(verifiedToken)
 	fmt.Fprintf(w, events)
@@ -73,7 +77,11 @@ var getEventMembers = http.HandlerFunc(func(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	verifiedToken := parseMeetupToken(cookie)
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
 	vars := mux.Vars(r)
 
 	members := getMeetupEventMembers(verifiedToken, vars["groupname"], vars["eid"])
@@ -81,14 +89,12 @@ var getEventMembers = http.HandlerFunc(func(w http.ResponseWriter, r *http.Reque
 })
 
 var GetMember = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	cookieName := "jwt"
-	cookie, err := r.Cookie(cookieName)
-
+	cookie := r.Header["Authentication"][0]
+	verifiedToken, err := parseMeetupToken(cookie)
 	if err != nil {
-		panic(err)
+		sendUnathorized(w)
+		return
 	}
-	fmt.Printf(cookie.Value)
-	verifiedToken := parseMeetupToken(cookie.Value)
 
 	member := getMemberInfo(verifiedToken)
 	jsonMember, err := json.Marshal(member)
@@ -106,13 +112,17 @@ var AddDeck = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sendUnathorized(w)
 		return
 	}
-	verifiedToken := parseMeetupToken(cookie)
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
 
 	member := getMemberInfo(verifiedToken)
 	decoder := json.NewDecoder(r.Body)
 	var deck Deck
-	err := decoder.Decode(&deck)
-	fmt.Println(formatRequest(r))
+	err = decoder.Decode(&deck)
+	// fmt.Println(formatRequest(r))
 	if err != nil {
 		panic(err)
 	}
@@ -125,6 +135,7 @@ var AddDeck = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	// - deck ID
 	// - card member
 	// - imageURL
+
 	err = addDeckToDB(member.ID, deck)
 
 	if err != nil {
@@ -137,7 +148,11 @@ var AddDeck = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 var GetDecks = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	cookie := r.Header["Authentication"][0]
 
-	verifiedToken := parseMeetupToken(cookie)
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
 
 	member := getMemberInfo(verifiedToken)
 
@@ -157,41 +172,49 @@ var GetDecks = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 var GetCards = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	cookie := r.Header["Authentication"][0]
-	verifiedToken := parseMeetupToken(cookie)
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
 	member := getMemberInfo(verifiedToken)
 	vars := mux.Vars(r)
 	cards, err := getCardsFromDB(member.ID, vars["deckID"])
-
 	if err != nil {
 		panic(err)
 	}
+	deck, err := getDeckFromDB(member.ID, vars["deckID"])
 
 	var rounds []GameRound
 
 	rand.Seed(time.Now().Unix())
 
 	numCards := len(cards)
+	fmt.Println(numCards)
 
 	for i := 0; i < numCards; i++ {
 		correct := rand.Intn(4)
 		var names []string
+		m := make(map[int]bool)
 
 		// initialize 4 cards
 		for j := 0; j < 4; j++ {
 			var name string
 			if j == correct {
-				name = cards[i].MeetupID
+				name = getCachedMeetupName(cards[i].MeetupID, verifiedToken, &deck)
 			} else {
-				// Get a random card that istn
+				// Get a random card that isnt correct one
 				r := i
-				for r == i {
+				for r == i || m[r] {
 					r = rand.Intn(numCards)
 				}
-				name = cards[r].MeetupID
+				m[r] = true
+				name = getCachedMeetupName(cards[r].MeetupID, verifiedToken, &deck)
 			}
 			names = append(names, name)
 		}
-		rounds = append(rounds, GameRound{names, correct, cards[i].ImageURL})
+		img := getCachedMeetupImage(cards[i].MeetupID, verifiedToken, &deck)
+		rounds = append(rounds, GameRound{names, correct, img})
 	}
 
 	jsonCards, err := json.Marshal(rounds)
@@ -208,7 +231,11 @@ var GetCards = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 var PostScore = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	cookie := r.Header["Authentication"][0]
-	verifiedToken := parseMeetupToken(cookie)
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
 	member := getMemberInfo(verifiedToken)
 	vars := mux.Vars(r)
 
@@ -229,7 +256,11 @@ var PostScore = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 var SetSelectedDeck = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	cookie := r.Header["Authentication"][0]
-	verifiedToken := parseMeetupToken(cookie)
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
 	member := getMemberInfo(verifiedToken)
 	vars := mux.Vars(r)
 
@@ -250,7 +281,11 @@ var SetSelectedDeck = http.HandlerFunc(func(w http.ResponseWriter, r *http.Reque
 
 var GetLastDeck = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 	cookie := r.Header["Authentication"][0]
-	verifiedToken := parseMeetupToken(cookie)
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
 	member := getMemberInfo(verifiedToken)
 	fmt.Println("getting last deck")
 	deck, err := getLastDeckFromDB(member.ID)
@@ -264,5 +299,25 @@ var GetLastDeck = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) 
 
 	fmt.Fprintf(w, string(jsonDeck))
 
+	return
+})
+
+var TestLimit = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	cookie := r.Header["Authentication"][0]
+	verifiedToken, err := parseMeetupToken(cookie)
+	if err != nil {
+		sendUnathorized(w)
+		return
+	}
+	fmt.Println("TESTING")
+	var member Member
+	for i := 0; i < 100; i++ {
+		member = getMemberInfo(verifiedToken)
+	}
+	jsonMember, err := json.Marshal(member)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Fprintf(w, string(jsonMember))
 	return
 })

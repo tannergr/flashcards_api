@@ -22,15 +22,16 @@ func connectDB() (*sql.DB, error) {
 }
 
 func addDeckToDB(memberID int64, deck Deck) error {
-	fmt.Printf("%v : %v", memberID, deck.Name)
+	fmt.Printf("%v : %v\n", memberID, deck.Name)
 
 	query := `
-		INSERT INTO decks (deck_name, user_id, event_id)
-		VALUES($1, $2, $3)
+		INSERT INTO decks (deck_name, user_id, event_id, group_name)
+		VALUES($1, $2, $3, $4)
 		RETURNING deck_id
 	`
 	deckID := 0
-	err := db.QueryRow(query, deck.Name, memberID, deck.EventID).Scan(&deckID)
+	fmt.Println(deck.EventID)
+	err := db.QueryRow(query, deck.Name, memberID, deck.EventID, deck.GroupName).Scan(&deckID)
 	if err != nil {
 		return err
 	}
@@ -41,17 +42,16 @@ func addDeckToDB(memberID int64, deck Deck) error {
 	valueArgs := make([]interface{}, 0, len(deck.Cards)*3)
 	i := 1
 	for _, card := range deck.Cards {
-		valueString := fmt.Sprintf("($%v, $%v, $%v)", i, i+1, i+2)
+		valueString := fmt.Sprintf("($%v, $%v)", i, i+1)
 		valueStrings = append(valueStrings, valueString)
 		valueArgs = append(valueArgs, deckID)
-		valueArgs = append(valueArgs, card.Name)
-		valueArgs = append(valueArgs, card.ImageURL)
-		i += 3
+		valueArgs = append(valueArgs, card.MeetupID)
+		i += 2
 	}
 
 	query = fmt.Sprintf(`
 		WITH rows AS (
-			INSERT INTO members (deck_id, meetup_id, image_url)
+			INSERT INTO members (deck_id, meetup_id)
 			VALUES %v
 			RETURNING 1
 		)
@@ -85,7 +85,7 @@ func getDecksFromDB(memberID int64) ([]*DB_Deck, error) {
 	decks := make([]*DB_Deck, 0)
 	for rows.Next() {
 		deck := new(DB_Deck)
-		err := rows.Scan(&deck.ID, &deck.Name, &deck.EventID, &deck.UserID, &deck.LastScore)
+		err := rows.Scan(&deck.ID, &deck.Name, &deck.EventID, &deck.UserID, &deck.LastScore, &deck.GroupName)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -96,7 +96,7 @@ func getDecksFromDB(memberID int64) ([]*DB_Deck, error) {
 
 func getCardsFromDB(memberID int64, deckID string) ([]*DB_Card, error) {
 	query := `
-		select deck_name, meetup_id, image_url from (
+		select meetup_id from (
 			select * from decks d
 			inner join (
 				select * from members
@@ -115,14 +115,16 @@ func getCardsFromDB(memberID int64, deckID string) ([]*DB_Card, error) {
 	defer rows.Close()
 
 	cards := make([]*DB_Card, 0)
+
 	for rows.Next() {
 		card := new(DB_Card)
-		err := rows.Scan(&card.Name, &card.MeetupID, &card.ImageURL)
+		err := rows.Scan(&card.MeetupID)
 		if err != nil {
 			log.Fatal(err)
 		}
 		cards = append(cards, card)
 	}
+
 	return cards, nil
 }
 
@@ -233,6 +235,25 @@ func getLastDeckFromDB(memberID int64) (DB_Deck, error) {
 	err := db.QueryRow(query, memberID).Scan(&deck.ID, &deck.Name, &deck.EventID, &deck.UserID, &deck.LastScore)
 
 	if err != nil {
+		return deck, err
+	}
+	return deck, nil
+}
+
+func getDeckFromDB(memberID int64, deckID string) (DB_Deck, error) {
+	query := `
+		select d.deck_id, d.deck_name, d.event_id, d.user_id, d.lastScore, d.group_name
+		from decks d where user_id=$1 and deck_id=$2
+	`
+	var deck DB_Deck
+	fmt.Println("######")
+	fmt.Println(memberID)
+	fmt.Println(deckID)
+	fmt.Println("######")
+
+	err := db.QueryRow(query, memberID, deckID).Scan(&deck.ID, &deck.Name, &deck.EventID, &deck.UserID, &deck.LastScore, &deck.GroupName)
+	if err != nil {
+		fmt.Println(err)
 		return deck, err
 	}
 	return deck, nil

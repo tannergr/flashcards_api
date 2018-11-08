@@ -48,19 +48,19 @@ func buildMeetupToken(accessToken string) http.Cookie {
 	return cookie
 }
 
-func parseMeetupToken(tokenString string) string {
+func parseMeetupToken(tokenString string) (string, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		return []byte(SigningKey), nil
 	})
 	if err != nil {
-		log.Fatal(err)
+		return "", err
 	}
 	claims := token.Claims.(jwt.MapClaims)
 	accessTokenString, ok := claims[string("AccessToken")].(string)
 	if ok {
-		return accessTokenString
+		return accessTokenString, nil
 	}
-	return "not string"
+	return "not string", nil
 
 }
 
@@ -101,18 +101,23 @@ func getMemberInfo(tokenString string) Member {
 		log.Fatal(err)
 	} else {
 		defer response.Body.Close()
+		// for k, v := range response.Header {
+		// 	fmt.Print(k)
+		// 	fmt.Print(" : ")
+		// 	fmt.Println(v)
+		// }
 		contents, err := ioutil.ReadAll(response.Body)
-		fmt.Printf(string(contents))
+		// fmt.Printf(string(contents))
 		if err != nil {
-			fmt.Printf("%s", err)
+			fmt.Printf("ERROR: %s", err)
 			os.Exit(1)
 		}
 		err = json.Unmarshal([]byte(contents), &member)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("%s \n", member.Name)
-		fmt.Printf("%v \n", member.ID)
+		fmt.Printf("Name: %s \n", member.Name)
+		fmt.Printf("MemberID: %v \n", member.ID)
 		return member
 	}
 	return member
@@ -132,4 +137,36 @@ func getMeetupEventMembers(tokenString string, groupname string, eid string) str
 		return string(contents)
 	}
 	return "ok"
+}
+
+func getMeetupEventMembersArray(tokenString string, groupname string, eid string) []Card {
+	var RSVPs []MeetupRSVP
+	var cards []Card
+	url := fmt.Sprintf("https://api.meetup.com/%v/events/%v/attendance?access_token=%v",
+		groupname,
+		eid,
+		tokenString)
+	fmt.Println(url)
+
+	response, err := http.Get(url)
+
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		defer response.Body.Close()
+		contents, err := ioutil.ReadAll(response.Body)
+		err = json.Unmarshal([]byte(contents), &RSVPs)
+		if err != nil {
+			log.Fatal(err)
+		}
+		for i := 0; i < len(RSVPs); i++ {
+			//name, imageurl, id
+			name := RSVPs[i].Member.Name
+			image := RSVPs[i].Member.Photo.ImageURL
+			id := RSVPs[i].Member.MeetupID
+			cards = append(cards, Card{name, image, id})
+		}
+		return cards
+	}
+	return cards
 }

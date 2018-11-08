@@ -1,10 +1,11 @@
 package main
 
 type Deck struct {
-	ID      int64  `json:"deck_id"`
-	Name    string `json:"name"`
-	EventID string `json:"event_id"`
-	Cards   []Card `json:"cards"`
+	ID        int64  `json:"deck_id"`
+	Name      string `json:"name"`
+	EventID   string `json:"event_id"`
+	Cards     []Card `json:"cards"`
+	GroupName string `json:"group_name"`
 }
 
 type DB_Deck struct {
@@ -13,11 +14,13 @@ type DB_Deck struct {
 	EventID   string `json:"event_id"`
 	UserID    string `json:"user_id"`
 	LastScore int    `json:"lastScore"`
+	GroupName string `json:"group_name"`
 }
 
 type Card struct {
 	Name     string `json:"name"`
 	ImageURL string `json:"imageurl"`
+	MeetupID int    `json:"meetup_id"`
 }
 
 type GameRound struct {
@@ -27,9 +30,7 @@ type GameRound struct {
 }
 
 type DB_Card struct {
-	Name     string `json:"deck_name"`
-	ImageURL string `json:"imageurl"`
-	MeetupID string `json:"meetup_id"`
+	MeetupID int `json:"meetup_id"`
 }
 
 type Member struct {
@@ -66,4 +67,18 @@ type errResp struct {
 
 type succResp struct {
 	Message string
+}
+
+type MeetupRSVP struct {
+	Member Event_Member `json:"member"`
+}
+
+type Event_Member struct {
+	Name     string `json:"name"`
+	Photo    Photo  `json:"photo"`
+	MeetupID int    `json:"id"`
+}
+
+type Photo struct {
+	ImageURL string `json:"highres_link"`
 }
